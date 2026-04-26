@@ -9,6 +9,15 @@ external_url 'http://localhost:8023'
 nginx['listen_addresses'] = ['0.0.0.0']
 nginx['listen_port'] = 8023
 
+# TLS is terminated at the upstream Ingress, not by gitlab's nginx.
+# When external_url uses https:// gitlab-ctl reconfigure auto-enables
+# letsencrypt and tries an ACME HTTP-01 challenge from inside the pod
+# — which can't reach itself, so Chef crashes. Disable both letsencrypt
+# and the http→https redirect so reconfigure stays a no-op for TLS.
+letsencrypt['enable'] = false
+nginx['redirect_http_to_https'] = false
+nginx['listen_https'] = false
+
 # Trust proxy headers from reverse proxies (K8s Ingress, nginx, etc.)
 # Using private networks + localhost (safer than 0.0.0.0/0)
 gitlab_rails['trusted_proxies'] = [

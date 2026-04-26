@@ -59,6 +59,23 @@ else
         sed -i "s|nginx\['listen_port'\] = 8023|nginx['listen_port'] = $NEW_PORT|" /etc/gitlab/gitlab.rb
     fi
 
+    # When external_url uses https://, gitlab-ctl reconfigure auto-enables
+    # letsencrypt and runs an HTTP-01 challenge from inside the pod, which
+    # can't reach itself. TLS is terminated at the upstream Ingress, so
+    # disable letsencrypt + http→https redirect to keep reconfigure quiet.
+    case "$WA_ENV_CTRL_EXTERNAL_SITE_URL" in
+        https://*)
+            echo "Disabling letsencrypt + listen_https (TLS handled by upstream ingress)..."
+            cat <<'GITLAB_TLS_OVERRIDE' >>/etc/gitlab/gitlab.rb
+
+# Appended by webarena-verified entrypoint when external_url is https://
+letsencrypt['enable'] = false
+nginx['redirect_http_to_https'] = false
+nginx['listen_https'] = false
+GITLAB_TLS_OVERRIDE
+            ;;
+    esac
+
     echo "Running gitlab-ctl reconfigure..."
     gitlab-ctl reconfigure
     echo "Reconfigure completed"
@@ -67,7 +84,13 @@ fi
 # Start env-ctrl with auto-restart (if enabled)
 if [ "${WA_ENV_CTRL_ENABLE:-}" = "true" ]; then
     echo "Running env-ctrl init..."
-    if ! /usr/local/bin/env-ctrl init; then
+    # gitlab's env-ctrl init requires --base-url; pass the env var explicitly.
+    # Also set SKIP_RECONFIGURE for this call so env-ctrl doesn't re-run the
+    # 2-5 min gitlab-ctl reconfigure we already performed above. The
+    # base_url validation in env-ctrl runs BEFORE the skip check, so the
+    # arg is mandatory either way.
+    if ! WA_ENV_CTRL_SKIP_RECONFIGURE=true \
+            /usr/local/bin/env-ctrl init --base-url "$WA_ENV_CTRL_EXTERNAL_SITE_URL"; then
         echo "ERROR: env-ctrl init failed"
         exit 1
     fi
