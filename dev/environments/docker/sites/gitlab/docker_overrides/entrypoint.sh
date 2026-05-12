@@ -76,6 +76,9 @@ GITLAB_TLS_OVERRIDE
             ;;
     esac
 
+    echo "Stopping puma before reconfigure to avoid serving stale config..."
+    gitlab-ctl stop puma
+
     echo "Running gitlab-ctl reconfigure..."
     gitlab-ctl reconfigure
     echo "Reconfigure completed"

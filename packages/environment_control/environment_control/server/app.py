@@ -106,7 +106,8 @@ def _create_handler(ops: type[BaseOps], env_name: str, site_url: Optional[str] =
                 self._send_html(self._get_dashboard_html())
             elif path == "/status":
                 result = ops.get_health()
-                self._send_json(result.to_dict())
+                status_code = 200 if result.success else 503
+                self._send_json(result.to_dict(), status_code)
             else:
                 self._send_json(
                     {"success": False, "error": "Not found"},

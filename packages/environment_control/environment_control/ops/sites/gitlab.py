@@ -354,7 +354,10 @@ class GitlabOps(BaseOps):
         returncode, stdout, stderr = cls._run_cmd(cmd, exec_cmd)
 
         # Check if the final URL contains /users/sign_in (login page)
-        ready = returncode == 0 and "/users/sign_in" in stdout
+        # Don't require returncode == 0: with HTTPS external URLs, curl follows
+        # the redirect to https:// but can't connect (TLS is at the ingress,
+        # not inside the pod), so rc is 35. The effective URL is still captured.
+        ready = "/users/sign_in" in stdout
 
         return Result(
             success=ready,
